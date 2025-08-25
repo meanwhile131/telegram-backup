@@ -2,6 +2,8 @@
 #include <td/telegram/Client.h>
 #include <td/telegram/td_api.h>
 #include <overload.h>
+#include <unordered_map>
+#include <functional>
 
 class Client
 {
@@ -23,7 +25,15 @@ public:
                 overloaded(
                     [&](td::td_api::updateAuthorizationState &authUpdate)
                     {
-                        handle_auth_update(authUpdate);
+                        authorization_state = std::move(authUpdate.authorization_state_);
+                        handle_auth_state();
+                    },
+                    [&](td::td_api::error &error)
+                    {
+                        if (authorization_state->get_id() != td::td_api::authorizationStateReady::ID) {
+                            handle_auth_state();
+                            return;
+                        }
                     },
                     [&](auto &update) {}));
         }
@@ -33,14 +43,16 @@ private:
     td::ClientManager client_manager;
     td::ClientManager::ClientId client_id;
     td::ClientManager::RequestId request_id{1};
+    td::td_api::object_ptr<td::td_api::AuthorizationState> authorization_state;
     void send_request(td::td_api::object_ptr<td::td_api::Function> request)
     {
         client_manager.send(client_id, request_id, std::move(request));
+        request_id++;
     }
-    void handle_auth_update(td::td_api::updateAuthorizationState &authUpdate)
+    void handle_auth_state()
     {
         td::td_api::downcast_call(
-            *authUpdate.authorization_state_,
+            *authorization_state,
             overloaded(
                 [this](td::td_api::authorizationStateReady &)
                 {
