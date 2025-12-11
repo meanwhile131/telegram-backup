@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 // Simple single-threaded example of TDLib usage.
 // Real world programs should use separate thread for the user input.
@@ -65,7 +66,7 @@ public:
         send_query(td_api::make_object<td_api::getOption>("version"), {});
     }
 
-    void loop()
+    void start()
     {
         while (true)
         {
@@ -73,23 +74,54 @@ public:
             {
                 restart();
             }
-            else if (!are_authorized_)
+            else if (!are_authorized_ || !chats_loaded)
             {
                 process_response(client_manager_->receive(10));
             }
-            while (true)
+            else
             {
-                auto response = client_manager_->receive(0);
-                if (response.object)
-                {
-                    process_response(std::move(response));
-                }
-                else
-                {
-                    break;
-                }
+                break;
             }
         }
+    }
+
+    void run_loop_until(std::function<bool()> condition)
+    {
+        while (!condition())
+        {
+            auto response = client_manager_->receive(10);
+            if (response.object)
+            {
+                process_response(std::move(response));
+            }
+        }
+    }
+
+    void backup_file(std::filesystem::path path, int64_t chat_id)
+    {
+
+        auto file_path = path.string();
+        std::cout << "Sending file " << file_path << " to " << chat_id << std::endl;
+        auto message_content = td_api::make_object<td_api::inputMessageDocument>();
+        message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
+        bool file_sent{false};
+        send_query(td_api::make_object<td_api::sendMessage>(chat_id, 0, nullptr, nullptr, nullptr, std::move(message_content)),
+                   [this, &file_sent](Object object)
+                   {
+                       if (object->get_id() == td_api::message::ID)
+                       {
+                           std::cout << "File sent successfully!" << std::endl;
+                       }
+                       else
+                       {
+                           std::cout << "Failed to send file: " << to_string(object) << std::endl;
+                       }
+                       file_sent = true;
+                   });
+
+        run_loop_until([&file_sent]()
+                       { return file_sent; });
+        std::cout << "File sent." << std::endl;
     }
 
 private:
@@ -100,6 +132,7 @@ private:
     td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
     bool are_authorized_{false};
     bool need_restart_{false};
+    bool chats_loaded{false};
     std::uint64_t current_query_id_{0};
     std::uint64_t authentication_query_id_{0};
 
@@ -108,6 +141,23 @@ private:
     std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
 
     std::map<std::int64_t, std::string> chat_title_;
+
+    void load_chats()
+    {
+        send_query(td_api::make_object<td_api::loadChats>(nullptr, 20), [&](Object object)
+                   {
+            std::cout << "Loading next chats batch..." << std::endl;
+            if (object->get_id() == td_api::error::ID) {
+                chats_loaded = true;
+                std::cout << "Done loading chats" << std::endl;
+                return;
+            }
+            auto chats = td::move_tl_object_as<td_api::chats>(object);
+            for (auto chat_id : chats->chat_ids_) {
+              std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
+            }
+            load_chats(); });
+    }
 
     void restart()
     {
@@ -230,6 +280,7 @@ private:
                                   {
                                       are_authorized_ = true;
                                       std::cout << "Authorization is completed" << std::endl;
+                                      load_chats();
                                   },
                                   [this](td_api::authorizationStateLoggingOut &)
                                   {
@@ -336,8 +387,38 @@ private:
     }
 };
 
-int main()
+int main(int argc, char *argv[])
 {
+    if (argc != 3)
+    {
+        std::cout << "Usage: " << argv[0] << " <path_to_file> <chat_id>" << std::endl;
+        return 1;
+    }
+    std::filesystem::path file_path = argv[1];
+    int64_t chat_id{};
+    try
+    {
+        chat_id = std::stol(argv[2]);
+    }
+    catch (const std::invalid_argument &ia)
+    {
+        std::cerr << "Invalid argument: " << ia.what() << std::endl;
+        return 1;
+    }
+    catch (const std::out_of_range &oor)
+    {
+        std::cerr << "Out of range: " << oor.what() << std::endl;
+        return 1;
+    }
+    if (!std::filesystem::exists(file_path))
+    {
+        std::cout << "File not found: " << file_path << std::endl;
+        return 1;
+    }
+
     TelegramBackup telegram_backup;
-    telegram_backup.loop();
+    telegram_backup.start();
+    // telegram_backup.backup_file(file_path, chat_id);
+
+    return 0;
 }
