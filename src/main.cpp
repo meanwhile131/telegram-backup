@@ -87,8 +87,12 @@ public:
 
     void run_loop_until(std::function<bool()> condition)
     {
-        while (!condition())
+        while (true)
         {
+            if (condition())
+            {
+                break;
+            }
             auto response = client_manager_->receive(10);
             if (response.object)
             {
@@ -97,9 +101,8 @@ public:
         }
     }
 
-    void backup_file(std::filesystem::path path, int64_t chat_id)
+    void upload_file(std::filesystem::path path, int64_t chat_id)
     {
-
         auto file_path = path.string();
         std::cout << "Sending file " << file_path << " to " << chat_id << std::endl;
         auto message_content = td_api::make_object<td_api::inputMessageDocument>();
@@ -121,7 +124,6 @@ public:
 
         run_loop_until([&file_sent]()
                        { return file_sent; });
-        std::cout << "File sent." << std::endl;
     }
 
 private:
@@ -138,23 +140,14 @@ private:
 
     std::map<std::uint64_t, std::function<void(Object)>> handlers_;
 
-    std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
-
-    std::map<std::int64_t, std::string> chat_title_;
-
     void load_chats()
     {
         send_query(td_api::make_object<td_api::loadChats>(nullptr, 20), [&](Object object)
                    {
-            std::cout << "Loading next chats batch..." << std::endl;
             if (object->get_id() == td_api::error::ID) {
                 chats_loaded = true;
-                std::cout << "Done loading chats" << std::endl;
+                std::cout << "Done loading chats." << std::endl;
                 return;
-            }
-            auto chats = td::move_tl_object_as<td_api::chats>(object);
-            for (auto chat_id : chats->chat_ids_) {
-              std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
             }
             load_chats(); });
     }
@@ -193,26 +186,6 @@ private:
         }
     }
 
-    std::string get_user_name(std::int64_t user_id) const
-    {
-        auto it = users_.find(user_id);
-        if (it == users_.end())
-        {
-            return "unknown user";
-        }
-        return it->second->first_name_ + " " + it->second->last_name_;
-    }
-
-    std::string get_chat_title(std::int64_t chat_id) const
-    {
-        auto it = chat_title_.find(chat_id);
-        if (it == chat_title_.end())
-        {
-            return "unknown chat";
-        }
-        return it->second;
-    }
-
     void process_update(td_api::object_ptr<td_api::Object> update)
     {
         td_api::downcast_call(
@@ -221,41 +194,6 @@ private:
                          {
                              authorization_state_ = std::move(update_authorization_state.authorization_state_);
                              on_authorization_state_update();
-                         },
-                         [this](td_api::updateNewChat &update_new_chat)
-                         {
-                             chat_title_[update_new_chat.chat_->id_] = update_new_chat.chat_->title_;
-                         },
-                         [this](td_api::updateChatTitle &update_chat_title)
-                         {
-                             chat_title_[update_chat_title.chat_id_] = update_chat_title.title_;
-                         },
-                         [this](td_api::updateUser &update_user)
-                         {
-                             auto user_id = update_user.user_->id_;
-                             users_[user_id] = std::move(update_user.user_);
-                         },
-                         [this](td_api::updateNewMessage &update_new_message)
-                         {
-                             auto chat_id = update_new_message.message_->chat_id_;
-                             std::string sender_name;
-                             td_api::downcast_call(*update_new_message.message_->sender_id_,
-                                                   overloaded(
-                                                       [this, &sender_name](td_api::messageSenderUser &user)
-                                                       {
-                                                           sender_name = get_user_name(user.user_id_);
-                                                       },
-                                                       [this, &sender_name](td_api::messageSenderChat &chat)
-                                                       {
-                                                           sender_name = get_chat_title(chat.chat_id_);
-                                                       }));
-                             std::string text;
-                             if (update_new_message.message_->content_->get_id() == td_api::messageText::ID)
-                             {
-                                 text = static_cast<td_api::messageText &>(*update_new_message.message_->content_).text_->text_;
-                             }
-                             std::cout << "Receive message: [chat_id:" << chat_id << "] [from:" << sender_name << "] ["
-                                       << text << "]" << std::endl;
                          },
                          [](auto &update) {}));
     }
@@ -279,7 +217,7 @@ private:
                                   [this](td_api::authorizationStateReady &)
                                   {
                                       are_authorized_ = true;
-                                      std::cout << "Authorization is completed" << std::endl;
+                                      std::cout << "Authorization is completed.\nLoading chats..." << std::endl;
                                       load_chats();
                                   },
                                   [this](td_api::authorizationStateLoggingOut &)
@@ -418,7 +356,7 @@ int main(int argc, char *argv[])
 
     TelegramBackup telegram_backup;
     telegram_backup.start();
-    // telegram_backup.backup_file(file_path, chat_id);
+    telegram_backup.upload_file(file_path, chat_id);
 
     return 0;
 }
