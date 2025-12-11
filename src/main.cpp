@@ -108,7 +108,7 @@ public:
         auto message_content = td_api::make_object<td_api::inputMessageDocument>();
         message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
         bool file_sent{false};
-        send_query(td_api::make_object<td_api::sendMessage>(chat_id, 0, nullptr, nullptr, nullptr, std::move(message_content)),
+        send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr, std::move(message_content)),
                    [this, &file_sent](Object object)
                    {
                        if (object->get_id() == td_api::message::ID)
