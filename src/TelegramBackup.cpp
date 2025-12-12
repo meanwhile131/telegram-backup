@@ -235,7 +235,7 @@ void TelegramBackup::on_authorization_state_update()
                               {
                                   auto request = td_api::make_object<td_api::setTdlibParameters>();
                                   request->database_directory_ = "tdlib";
-                                  request->use_message_database_ = true;
+                                  request->use_chat_info_database_ = true;
                                   request->use_secret_chats_ = true;
                                   request->api_id_ = 94575;
                                   request->api_hash_ = "a3406de8d171bb422bb6ddf3bbd800e2";
