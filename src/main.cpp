@@ -106,6 +106,28 @@ public:
         }
     }
 
+    bool chat_id_exists(int64_t chat_id)
+    {
+        bool chat_exists{};
+        bool chat_checked{false};
+        send_query(td_api::make_object<td_api::getChat>(chat_id),
+                   [this, &chat_exists, &chat_checked](Object object)
+                   {
+                       chat_exists = object->get_id() == td_api::chat::ID;
+                       chat_checked = true;
+                   });
+
+        while (!chat_checked)
+        {
+            td::ClientManager::Response response = client_manager_->receive(10);
+            if (response.object)
+            {
+                process_response(std::move(response));
+            }
+        }
+        return chat_exists;
+    }
+
 private:
     using Object = td_api::object_ptr<td_api::Object>;
     std::unique_ptr<td::ClientManager> client_manager_;
@@ -336,6 +358,11 @@ int main(int argc, char *argv[])
 
     TelegramBackup telegram_backup;
     telegram_backup.start();
+    if (!telegram_backup.chat_id_exists(chat_id))
+    {
+        std::cout << "Chat not found: " << chat_id << std::endl;
+        return 1;
+    }
     telegram_backup.upload_file(file_path, chat_id);
 
     return 0;
