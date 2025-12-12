@@ -74,22 +74,6 @@ public:
         }
     }
 
-    void run_loop_until(std::function<bool()> condition)
-    {
-        while (true)
-        {
-            if (condition())
-            {
-                break;
-            }
-            auto response = client_manager_->receive(10);
-            if (response.object)
-            {
-                process_response(std::move(response));
-            }
-        }
-    }
-
     void upload_file(std::filesystem::path path, int64_t chat_id)
     {
         auto file_path = path.string();
@@ -111,8 +95,14 @@ public:
                        file_sent = true;
                    });
 
-        run_loop_until([&file_sent]()
-                       { return file_sent; });
+        while (!file_sent)
+        {
+            td::ClientManager::Response response = client_manager_->receive(10);
+            if (response.object)
+            {
+                process_response(std::move(response));
+            }
+        }
     }
 
 private:
