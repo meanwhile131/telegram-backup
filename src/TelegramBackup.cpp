@@ -38,11 +38,7 @@ void TelegramBackup::upload_file(std::filesystem::path path, int64_t chat_id)
     send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr, std::move(message_content)),
                [this, &file_sent, file_path](Object object)
                {
-                   if (object->get_id() == td_api::message::ID)
-                   {
-                       std::cout << file_path << " sent!" << std::endl;
-                   }
-                   else
+                   if (object->get_id() != td_api::message::ID)
                    {
                        std::cout << "Failed to send " << file_path << ": " << to_string(object) << std::endl;
                    }
@@ -57,6 +53,7 @@ void TelegramBackup::upload_file(std::filesystem::path path, int64_t chat_id)
             process_response(std::move(response));
         }
     }
+    std::cout << file_path << " sent!" << std::endl;
 }
 
 bool TelegramBackup::chat_id_exists(int64_t chat_id)
