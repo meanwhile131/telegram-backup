@@ -57,6 +57,7 @@ public:
 
     void start()
     {
+        std::cout << "Authorizing..." << std::endl;
         while (true)
         {
             if (need_restart_)
@@ -77,20 +78,20 @@ public:
     void upload_file(std::filesystem::path path, int64_t chat_id)
     {
         auto file_path = path.string();
-        std::cout << "Sending file " << file_path << " to " << chat_id << std::endl;
+        std::cout << "Sending " << file_path << std::endl;
         auto message_content = td_api::make_object<td_api::inputMessageDocument>();
         message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
         bool file_sent{false};
         send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr, std::move(message_content)),
-                   [this, &file_sent](Object object)
+                   [this, &file_sent, file_path](Object object)
                    {
                        if (object->get_id() == td_api::message::ID)
                        {
-                           std::cout << "File sent successfully!" << std::endl;
+                           std::cout << file_path << " sent!" << std::endl;
                        }
                        else
                        {
-                           std::cout << "Failed to send file: " << to_string(object) << std::endl;
+                           std::cout << "Failed to send " << file_path << ": " << to_string(object) << std::endl;
                        }
                        file_sent = true;
                    });
