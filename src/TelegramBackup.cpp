@@ -69,7 +69,7 @@ bool TelegramBackup::chat_id_exists(int64_t chat_id) {
 }
 
 void TelegramBackup::load_chats() {
-    send_query(td_api::make_object<td_api::loadChats>(nullptr, 20), [&](Object object) {
+    send_query(td_api::make_object<td_api::loadChats>(nullptr, 1024), [&](Object object) {
         if (object->get_id() == td_api::error::ID) {
             chats_loaded = true;
             std::cout << "Done loading chats." << std::endl;
