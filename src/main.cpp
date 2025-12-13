@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     if (!telegram_backup.chat_id_exists(chat_id)) {
         std::cout << "Chat not found: " << chat_id << std::endl;
         return 1;
-    }git
+    }
     telegram_backup.queue_file_upload(file_path, chat_id);
     std::cout << "Sending files..." << std::endl;
     telegram_backup.send_all_files();
