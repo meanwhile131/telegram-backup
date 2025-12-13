@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <map>
 #include <functional>
+#include <set>
 
 // overloaded
 namespace detail
@@ -44,7 +45,8 @@ public:
     TelegramBackup();
 
     void start();
-    void upload_file(std::filesystem::path path, int64_t chat_id);
+    void queue_file_upload(std::filesystem::path path, int64_t chat_id);
+    void send_all_files();
     bool chat_id_exists(int64_t chat_id);
 
 private:
@@ -56,6 +58,7 @@ private:
     bool are_authorized_{false};
     bool need_restart_{false};
     bool chats_loaded{false};
+    std::set<int64_t> messages_sending;
     std::uint64_t current_query_id_{0};
     std::uint64_t authentication_query_id_{0};
 

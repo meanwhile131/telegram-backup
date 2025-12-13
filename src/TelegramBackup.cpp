@@ -28,24 +28,29 @@ void TelegramBackup::start()
     }
 }
 
-void TelegramBackup::upload_file(std::filesystem::path path, int64_t chat_id)
+void TelegramBackup::queue_file_upload(std::filesystem::path path, int64_t chat_id)
 {
     auto file_path = path.string();
-    std::cout << "Sending " << file_path << std::endl;
     auto message_content = td_api::make_object<td_api::inputMessageDocument>();
     message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
-    bool file_sent{false};
     send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr, std::move(message_content)),
-               [this, &file_sent, file_path](Object object)
+               [&](Object object)
                {
-                   if (object->get_id() != td_api::message::ID)
-                   {
-                       std::cout << "Failed to send " << file_path << ": " << to_string(object) << std::endl;
-                   }
-                   file_sent = true;
+                   td_api::downcast_call(
+                       *object, overloaded(
+                                    [this, &object](td_api::message &message)
+                                    {
+                                        std::cout << "Queued message #" << message.id_ << std::endl;
+                                        messages_sending.insert(message.id_);
+                                    },
+                                    [&](auto &object)
+                                    { std::cout << "Failed to send " << file_path << ": " << to_string(object) << std::endl; }));
                });
+}
 
-    while (!file_sent)
+void TelegramBackup::send_all_files()
+{
+    while (!messages_sending.empty())
     {
         td::ClientManager::Response response = client_manager_->receive(10);
         if (response.object)
@@ -53,7 +58,6 @@ void TelegramBackup::upload_file(std::filesystem::path path, int64_t chat_id)
             process_response(std::move(response));
         }
     }
-    std::cout << file_path << " sent!" << std::endl;
 }
 
 bool TelegramBackup::chat_id_exists(int64_t chat_id)
@@ -132,6 +136,15 @@ void TelegramBackup::process_update(td_api::object_ptr<td_api::Object> update)
                      {
                          authorization_state_ = std::move(update_authorization_state.authorization_state_);
                          on_authorization_state_update();
+                     },
+                     [this](td_api::updateMessageSendSucceeded &update)
+                     {
+                         int64_t old_id = update.old_message_id_;
+                         if (messages_sending.contains(old_id))
+                         {
+                             messages_sending.erase(old_id);
+                             std::cout << "Message #" << old_id << " sent." << std::endl;
+                         }
                      },
                      [](auto &update) {}));
 }
