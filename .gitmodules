@@ -2,3 +2,7 @@
 	path = td
 	url = https://github.com/tdlib/td.git
     shallow = true
+[submodule "CLI11"]
+	path = CLI11
+	url = https://github.com/CLIUtils/CLI11.git
+	shallow = true
