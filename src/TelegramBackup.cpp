@@ -1,190 +1,155 @@
 #include <TelegramBackup.h>
 
-TelegramBackup::TelegramBackup()
-{
+TelegramBackup::TelegramBackup() {
     td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
     send_query(td_api::make_object<td_api::getOption>("version"), {});
 }
 
-void TelegramBackup::start()
-{
+void TelegramBackup::start() {
     std::cout << "Authorizing..." << std::endl;
-    while (true)
-    {
-        if (need_restart_)
-        {
+    while (true) {
+        if (need_restart_) {
             restart();
-        }
-        else if (!are_authorized_ || !chats_loaded)
-        {
+        } else if (!are_authorized_ || !chats_loaded) {
             process_response(client_manager_->receive(10));
-        }
-        else
-        {
+        } else {
             break;
         }
     }
 }
 
-void TelegramBackup::queue_file_upload(std::filesystem::path path, int64_t chat_id)
-{
+void TelegramBackup::queue_file_upload(const std::filesystem::path &path, int64_t chat_id) {
     auto file_path = path.string();
     auto message_content = td_api::make_object<td_api::inputMessageDocument>();
     message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
-    send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr, std::move(message_content)),
-               [&](Object object)
-               {
+    send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr,
+                                                        std::move(message_content)),
+               [&](Object object) {
                    td_api::downcast_call(
                        *object, overloaded(
-                                    [this, &object](td_api::message &message)
-                                    {
-                                        std::cout << "Queued message #" << message.id_ << std::endl;
-                                        messages_sending.insert(message.id_);
-                                    },
-                                    [&](auto &object)
-                                    { std::cout << "Failed to send " << file_path << ": " << to_string(object) << std::endl; }));
+                           [this](const td_api::message &message) {
+                               std::cout << "Queued message #" << message.id_ << std::endl;
+                               messages_sending.insert(message.id_);
+                           },
+                           [&](auto &error) {
+                               std::cout << "Failed to send " << file_path << ": " << to_string(error) << std::endl;
+                           }));
                });
 }
 
-void TelegramBackup::send_all_files()
-{
-    while (!messages_sending.empty())
-    {
+void TelegramBackup::send_all_files() {
+    while (!messages_sending.empty()) {
         td::ClientManager::Response response = client_manager_->receive(10);
-        if (response.object)
-        {
+        if (response.object) {
             process_response(std::move(response));
         }
     }
 }
 
-bool TelegramBackup::chat_id_exists(int64_t chat_id)
-{
+bool TelegramBackup::chat_id_exists(int64_t chat_id) {
     bool chat_exists{};
     bool chat_checked{false};
     send_query(td_api::make_object<td_api::getChat>(chat_id),
-               [this, &chat_exists, &chat_checked](Object object)
-               {
+               [&chat_exists, &chat_checked](Object object) {
                    chat_exists = object->get_id() == td_api::chat::ID;
                    chat_checked = true;
                });
 
-    while (!chat_checked)
-    {
+    while (!chat_checked) {
         td::ClientManager::Response response = client_manager_->receive(10);
-        if (response.object)
-        {
+        if (response.object) {
             process_response(std::move(response));
         }
     }
     return chat_exists;
 }
 
-void TelegramBackup::load_chats()
-{
-    send_query(td_api::make_object<td_api::loadChats>(nullptr, 20), [&](Object object)
-               {
-            if (object->get_id() == td_api::error::ID) {
-                chats_loaded = true;
-                std::cout << "Done loading chats." << std::endl;
-                return;
-            }
-            load_chats(); });
+void TelegramBackup::load_chats() {
+    send_query(td_api::make_object<td_api::loadChats>(nullptr, 20), [&](Object object) {
+        if (object->get_id() == td_api::error::ID) {
+            chats_loaded = true;
+            std::cout << "Done loading chats." << std::endl;
+            return;
+        }
+        load_chats();
+    });
 }
 
-void TelegramBackup::restart()
-{
+void TelegramBackup::restart() {
     client_manager_.reset();
     *this = TelegramBackup();
 }
 
-void TelegramBackup::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler)
-{
+void TelegramBackup::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
     auto query_id = next_query_id();
-    if (handler)
-    {
+    if (handler) {
         handlers_.emplace(query_id, std::move(handler));
     }
     client_manager_->send(client_id_, query_id, std::move(f));
 }
 
-void TelegramBackup::process_response(td::ClientManager::Response response)
-{
-    if (!response.object)
-    {
+void TelegramBackup::process_response(td::ClientManager::Response response) {
+    if (!response.object) {
         return;
     }
-    if (response.request_id == 0)
-    {
+    if (response.request_id == 0) {
         return process_update(std::move(response.object));
     }
     auto it = handlers_.find(response.request_id);
-    if (it != handlers_.end())
-    {
+    if (it != handlers_.end()) {
         it->second(std::move(response.object));
         handlers_.erase(it);
     }
 }
 
-void TelegramBackup::process_update(td_api::object_ptr<td_api::Object> update)
-{
+void TelegramBackup::process_update(td_api::object_ptr<td_api::Object> update) {
     td_api::downcast_call(
         *update, overloaded(
-                     [this](td_api::updateAuthorizationState &update_authorization_state)
-                     {
-                         authorization_state_ = std::move(update_authorization_state.authorization_state_);
-                         on_authorization_state_update();
-                     },
-                     [this](td_api::updateMessageSendSucceeded &update)
-                     {
-                         int64_t old_id = update.old_message_id_;
-                         if (messages_sending.contains(old_id))
-                         {
-                             messages_sending.erase(old_id);
-                             std::cout << "Message #" << old_id << " sent." << std::endl;
-                         }
-                     },
-                     [](auto &update) {}));
+            [this](td_api::updateAuthorizationState &update_authorization_state) {
+                authorization_state_ = std::move(update_authorization_state.authorization_state_);
+                on_authorization_state_update();
+            },
+            [this](const td_api::updateMessageSendSucceeded &update) {
+                int64_t old_id = update.old_message_id_;
+                if (messages_sending.contains(old_id)) {
+                    messages_sending.erase(old_id);
+                    std::cout << "Message #" << old_id << " sent." << std::endl;
+                }
+            },
+            [](auto &update) {
+            }));
 }
 
-auto TelegramBackup::create_authentication_query_handler()
-{
-    return [this, id = authentication_query_id_](Object object)
-    {
-        if (id == authentication_query_id_)
-        {
+auto TelegramBackup::create_authentication_query_handler() {
+    return [this, id = authentication_query_id_](Object object) {
+        if (id == authentication_query_id_) {
             check_authentication_error(std::move(object));
         }
     };
 }
-void TelegramBackup::on_authorization_state_update()
-{
+
+void TelegramBackup::on_authorization_state_update() {
     authentication_query_id_++;
     td_api::downcast_call(*authorization_state_,
                           overloaded(
-                              [this](td_api::authorizationStateReady &)
-                              {
+                              [this](td_api::authorizationStateReady &) {
                                   are_authorized_ = true;
                                   std::cout << "Authorization is completed.\nLoading chats..." << std::endl;
                                   load_chats();
                               },
-                              [this](td_api::authorizationStateLoggingOut &)
-                              {
+                              [this](td_api::authorizationStateLoggingOut &) {
                                   are_authorized_ = false;
                                   std::cout << "Logging out" << std::endl;
                               },
-                              [this](td_api::authorizationStateClosing &)
-                              { std::cout << "Closing" << std::endl; },
-                              [this](td_api::authorizationStateClosed &)
-                              {
+                              [](td_api::authorizationStateClosing &) { std::cout << "Closing" << std::endl; },
+                              [this](td_api::authorizationStateClosed &) {
                                   are_authorized_ = false;
                                   need_restart_ = true;
                                   std::cout << "Terminated" << std::endl;
                               },
-                              [this](td_api::authorizationStateWaitPhoneNumber &)
-                              {
+                              [this](td_api::authorizationStateWaitPhoneNumber &) {
                                   std::cout << "Enter phone number: " << std::flush;
                                   std::string phone_number;
                                   std::cin >> phone_number;
@@ -192,20 +157,17 @@ void TelegramBackup::on_authorization_state_update()
                                       td_api::make_object<td_api::setAuthenticationPhoneNumber>(phone_number, nullptr),
                                       create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitPremiumPurchase &)
-                              {
+                              [](td_api::authorizationStateWaitPremiumPurchase &) {
                                   std::cout << "Telegram Premium subscription is required" << std::endl;
                               },
-                              [this](td_api::authorizationStateWaitEmailAddress &)
-                              {
+                              [this](td_api::authorizationStateWaitEmailAddress &) {
                                   std::cout << "Enter email address: " << std::flush;
                                   std::string email_address;
                                   std::cin >> email_address;
                                   send_query(td_api::make_object<td_api::setAuthenticationEmailAddress>(email_address),
                                              create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitEmailCode &)
-                              {
+                              [this](td_api::authorizationStateWaitEmailCode &) {
                                   std::cout << "Enter email authentication code: " << std::flush;
                                   std::string code;
                                   std::cin >> code;
@@ -213,16 +175,14 @@ void TelegramBackup::on_authorization_state_update()
                                                  td_api::make_object<td_api::emailAddressAuthenticationCode>(code)),
                                              create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitCode &)
-                              {
+                              [this](td_api::authorizationStateWaitCode &) {
                                   std::cout << "Enter authentication code: " << std::flush;
                                   std::string code;
                                   std::cin >> code;
                                   send_query(td_api::make_object<td_api::checkAuthenticationCode>(code),
                                              create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitRegistration &)
-                              {
+                              [this](td_api::authorizationStateWaitRegistration &) {
                                   std::string first_name;
                                   std::string last_name;
                                   std::cout << "Enter your first name: " << std::flush;
@@ -232,20 +192,18 @@ void TelegramBackup::on_authorization_state_update()
                                   send_query(td_api::make_object<td_api::registerUser>(first_name, last_name, false),
                                              create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitPassword &)
-                              {
+                              [this](td_api::authorizationStateWaitPassword &) {
                                   std::cout << "Enter authentication password: " << std::flush;
                                   std::string password;
                                   std::getline(std::cin, password);
                                   send_query(td_api::make_object<td_api::checkAuthenticationPassword>(password),
                                              create_authentication_query_handler());
                               },
-                              [this](td_api::authorizationStateWaitOtherDeviceConfirmation &state)
-                              {
-                                  std::cout << "Confirm this login link on another device: " << state.link_ << std::endl;
+                              [](const td_api::authorizationStateWaitOtherDeviceConfirmation &state) {
+                                  std::cout << "Confirm this login link on another device: " << state.link_ <<
+                                          std::endl;
                               },
-                              [this](td_api::authorizationStateWaitTdlibParameters &)
-                              {
+                              [this](td_api::authorizationStateWaitTdlibParameters &) {
                                   auto request = td_api::make_object<td_api::setTdlibParameters>();
                                   request->database_directory_ = "tdlib";
                                   request->use_chat_info_database_ = true;
@@ -259,16 +217,14 @@ void TelegramBackup::on_authorization_state_update()
                               }));
 }
 
-void TelegramBackup::check_authentication_error(Object object)
-{
-    if (object->get_id() == td_api::error::ID)
-    {
+void TelegramBackup::check_authentication_error(Object object) {
+    if (object->get_id() == td_api::error::ID) {
         auto error = td::move_tl_object_as<td_api::error>(object);
         std::cout << "Error: " << to_string(error) << std::flush;
         on_authorization_state_update();
     }
 }
-std::uint64_t TelegramBackup::next_query_id()
-{
+
+std::uint64_t TelegramBackup::next_query_id() {
     return ++current_query_id_;
 }

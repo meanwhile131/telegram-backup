@@ -8,45 +8,44 @@
 #include <set>
 
 // overloaded
-namespace detail
-{
-    template <class... Fs>
+namespace detail {
+    template<class... Fs>
     struct overload;
 
-    template <class F>
-    struct overload<F> : public F
-    {
-        explicit overload(F f) : F(f)
-        {
+    template<class F>
+    struct overload<F> : public F {
+        explicit overload(F f) : F(f) {
         }
     };
-    template <class F, class... Fs>
+
+    template<class F, class... Fs>
     struct overload<F, Fs...>
-        : public overload<F>, public overload<Fs...>
-    {
-        overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...)
-        {
+            : public overload<F>, public overload<Fs...> {
+        overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...) {
         }
+
         using overload<F>::operator();
         using overload<Fs...>::operator();
     };
 } // namespace detail
 
-template <class... F>
-auto overloaded(F... f)
-{
+template<class... F>
+auto overloaded(F... f) {
     return detail::overload<F...>(f...);
 }
+
 namespace td_api = td::td_api;
 
-class TelegramBackup
-{
+class TelegramBackup {
 public:
     TelegramBackup();
 
     void start();
-    void queue_file_upload(std::filesystem::path path, int64_t chat_id);
+
+    void queue_file_upload(const std::filesystem::path &path, int64_t chat_id);
+
     void send_all_files();
+
     bool chat_id_exists(int64_t chat_id);
 
 private:
@@ -62,15 +61,23 @@ private:
     std::uint64_t current_query_id_{0};
     std::uint64_t authentication_query_id_{0};
 
-    std::map<std::uint64_t, std::function<void(Object)>> handlers_;
+    std::map<std::uint64_t, std::function<void(Object)> > handlers_;
 
     void load_chats();
+
     void restart();
+
     void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler);
+
     void process_response(td::ClientManager::Response response);
+
     void process_update(td_api::object_ptr<td_api::Object> update);
+
     auto create_authentication_query_handler();
+
     void on_authorization_state_update();
+
     void check_authentication_error(Object object);
+
     std::uint64_t next_query_id();
 };
