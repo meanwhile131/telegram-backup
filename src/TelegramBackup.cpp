@@ -30,12 +30,12 @@ void TelegramBackup::queue_file_upload(const std::filesystem::path &path, int64_
                [this, file_path](Object object) {
                    td_api::downcast_call(
                        *object, overloaded(
-                           [this](td_api::message &message) {
-                               std::cout << "Queued message #" << message.id_ << std::endl;
+                           [&](td_api::message &message) {
+                               std::cout << "Queued " << file_path << " (message #" << message.id_ << ")" << std::endl;
                                messages_sending.insert(message.id_);
                            },
                            [&](auto &error) {
-                               std::cout << "Failed to send " << file_path << ": " << to_string(error) << std::endl;
+                               std::cout << "Failed to queue " << file_path << ": " << to_string(error) << std::endl;
                            }));
                    messages_queuing -= 1;
                });

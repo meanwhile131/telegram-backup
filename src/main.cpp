@@ -30,6 +30,6 @@ int main(int argc, char *argv[]) {
     telegram_backup.queue_file_upload(file_path, chat_id);
     std::cout << "Sending files..." << std::endl;
     telegram_backup.send_all_files();
-    std::cout << "All files sent." << std::endl;
+    std::cout << "Done." << std::endl;
     return 0;
 }
