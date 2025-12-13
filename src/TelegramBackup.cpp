@@ -24,23 +24,25 @@ void TelegramBackup::queue_file_upload(const std::filesystem::path &path, int64_
     auto file_path = path.string();
     auto message_content = td_api::make_object<td_api::inputMessageDocument>();
     message_content->document_ = td_api::make_object<td_api::inputFileLocal>(file_path);
+    messages_queuing += 1;
     send_query(td_api::make_object<td_api::sendMessage>(chat_id, nullptr, nullptr, nullptr, nullptr,
                                                         std::move(message_content)),
-               [&](Object object) {
+               [this, file_path](Object object) {
                    td_api::downcast_call(
                        *object, overloaded(
-                           [this](const td_api::message &message) {
+                           [this](td_api::message &message) {
                                std::cout << "Queued message #" << message.id_ << std::endl;
                                messages_sending.insert(message.id_);
                            },
                            [&](auto &error) {
                                std::cout << "Failed to send " << file_path << ": " << to_string(error) << std::endl;
                            }));
+                   messages_queuing -= 1;
                });
 }
 
 void TelegramBackup::send_all_files() {
-    while (!messages_sending.empty()) {
+    while (messages_queuing != 0 || !messages_sending.empty()) {
         td::ClientManager::Response response = client_manager_->receive(10);
         if (response.object) {
             process_response(std::move(response));
@@ -111,7 +113,7 @@ void TelegramBackup::process_update(td_api::object_ptr<td_api::Object> update) {
                 authorization_state_ = std::move(update_authorization_state.authorization_state_);
                 on_authorization_state_update();
             },
-            [this](const td_api::updateMessageSendSucceeded &update) {
+            [this](td_api::updateMessageSendSucceeded &update) {
                 int64_t old_id = update.old_message_id_;
                 if (messages_sending.contains(old_id)) {
                     messages_sending.erase(old_id);
