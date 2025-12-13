@@ -2,13 +2,13 @@
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        std::cout << "Usage: " << argv[0] << " <path_to_file> <chat_id>" << std::endl;
+        std::cout << "Usage: " << argv[0] << " <chat_id> <path_to_file>" << std::endl;
         return 1;
     }
-    std::filesystem::path file_path = argv[1];
+    std::filesystem::path file_path = argv[2];
     int64_t chat_id{};
     try {
-        chat_id = std::stol(argv[2]);
+        chat_id = std::stol(argv[1]);
     } catch (const std::invalid_argument &ia) {
         std::cerr << "Invalid argument: " << ia.what() << std::endl;
         return 1;
