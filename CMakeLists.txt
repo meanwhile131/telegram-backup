@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(TelegramBackup)
 
+set(TD_ENABLE_JNI OFF)
+set(TD_ENABLE_DOTNET OFF)
+set(TD_INSTALL_SHARED_LIBRARIES OFF)
 add_subdirectory(td)
 add_subdirectory(CLI11)
 add_compile_options(-Wall)
