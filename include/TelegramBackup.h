@@ -39,9 +39,9 @@ namespace td_api = td::td_api;
 
 class TelegramBackup {
 public:
-    TelegramBackup();
+    TelegramBackup(bool auth_only = false);
 
-    void start();
+    bool start();
 
     void queue_file_upload(const std::filesystem::path &path, int64_t chat_id);
 
@@ -60,6 +60,8 @@ private:
     bool chats_loaded{false};
     std::set<int64_t> messages_sending;
     int64_t messages_queuing{0};
+    bool auth_only;
+    bool auth_needed{false};
     std::uint64_t current_query_id_{0};
     std::uint64_t authentication_query_id_{0};
 

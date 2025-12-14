@@ -7,16 +7,33 @@ int main(int argc, char *argv[]) {
 
     int64_t chat_id;
     std::filesystem::path file_path;
-    app.add_option("chat_id", chat_id, "Chat ID")->required();
-    app.add_option("file", file_path, "File to upload")->required();
+    const CLI::App* auth_subcommand = app.add_subcommand("auth", "Log in to Telegram");
+    app.add_option("chat_id", chat_id, "Chat ID")->required(false);
+    app.add_option("file", file_path, "File to upload")->required(false);
     CLI11_PARSE(app, argc, argv);
-    if (!std::filesystem::exists(file_path)) {
+       bool has_auth = auth_subcommand->parsed();
+       bool has_args = (chat_id != 0) && !file_path.empty();
+
+       if (has_auth && has_args) {
+           throw CLI::ValidationError("Cannot provide chat_id and file with auth command");
+       }
+
+       if (!has_auth && !has_args) {
+           throw CLI::RequiredError("Must provide both chat_id and file when not using auth");
+       }
+    if (!has_auth && !std::filesystem::exists(file_path)) {
         std::cout << "File not found: " << file_path << std::endl;
         return 1;
     }
 
-    TelegramBackup telegram_backup;
-    telegram_backup.start();
+    TelegramBackup telegram_backup{has_auth};
+    if (!telegram_backup.start()) {
+        std::cerr << "Interactive auth is required." << std::endl;
+        return 1;
+    }
+    if (has_auth) {
+        return 0;
+    }
     if (!telegram_backup.chat_id_exists(chat_id)) {
         std::cout << "Chat not found: " << chat_id << std::endl;
         return 1;
