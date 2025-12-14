@@ -1,0 +1,1 @@
+[![Build](https://github.com/meanwhile131/telegram-backup/actions/workflows/build.yml/badge.svg)](https://github.com/meanwhile131/telegram-backup/actions/workflows/build.yml)
