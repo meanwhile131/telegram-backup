@@ -56,7 +56,7 @@ private:
 
     td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
     bool are_authorized_{false};
-    bool need_restart_{false};
+    bool exiting{false};
     bool chats_loaded{false};
     std::set<int64_t> messages_sending;
     int64_t messages_queuing{0};
@@ -68,8 +68,6 @@ private:
     std::map<std::uint64_t, std::function<void(Object)> > handlers_;
 
     void load_chats();
-
-    void restart();
 
     void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler);
 

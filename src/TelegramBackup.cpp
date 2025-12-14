@@ -10,14 +10,18 @@ TelegramBackup::TelegramBackup(const bool auth_only) : auth_only(auth_only) {
 bool TelegramBackup::start() {
     std::cout << "Authorizing..." << std::endl;
     while (true) {
-        if (need_restart_) {
-            restart();
-        } else if (!are_authorized_ || !chats_loaded) {
+        if (exiting) {
+            return false;
+        }
+        if (!are_authorized_ || !chats_loaded) {
             if (are_authorized_ && auth_only) {
                 return true;
             }
             process_response(client_manager_->receive(10));
-            if (auth_needed) { return false; }
+            if (auth_needed) {
+                std::cerr << "Interactive auth is required." << std::endl;
+                return false;
+            }
         } else {
             return true;
         }
@@ -83,11 +87,6 @@ void TelegramBackup::load_chats() {
     });
 }
 
-void TelegramBackup::restart() {
-    client_manager_.reset();
-    *this = TelegramBackup();
-}
-
 void TelegramBackup::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
     auto query_id = next_query_id();
     if (handler) {
@@ -146,13 +145,11 @@ void TelegramBackup::on_authorization_state_update() {
                                   load_chats();
                               },
                               [this](td_api::authorizationStateLoggingOut &) {
-                                  are_authorized_ = false;
                                   std::cout << "Logging out" << std::endl;
                               },
                               [](td_api::authorizationStateClosing &) { std::cout << "Closing" << std::endl; },
                               [this](td_api::authorizationStateClosed &) {
-                                  are_authorized_ = false;
-                                  need_restart_ = true;
+                                  exiting = true;
                                   std::cout << "Terminated" << std::endl;
                               },
                               [this](td_api::authorizationStateWaitPhoneNumber &) {

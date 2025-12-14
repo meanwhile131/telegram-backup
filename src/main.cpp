@@ -28,7 +28,6 @@ int main(int argc, char *argv[]) {
 
     TelegramBackup telegram_backup{has_auth};
     if (!telegram_backup.start()) {
-        std::cerr << "Interactive auth is required." << std::endl;
         return 1;
     }
     if (has_auth) {
