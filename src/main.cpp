@@ -7,28 +7,30 @@ int main(int argc, char *argv[]) {
 
     int64_t chat_id;
     std::filesystem::path file_path;
-    const CLI::App* auth_subcommand = app.add_subcommand("auth", "Log in to Telegram");
+    std::filesystem::path data_dir = "tdlib";
+    const CLI::App *auth_subcommand = app.add_subcommand("auth", "Log in to Telegram");
+    app.add_option("--datadir", data_dir, "TDLib database directory")->required(false);
     app.add_option("chat_id", chat_id, "Chat ID")->required(false);
     app.add_option("file", file_path, "File to upload")->required(false);
     CLI11_PARSE(app, argc, argv);
-       bool has_auth = auth_subcommand->parsed();
-       bool has_args = (chat_id != 0) && !file_path.empty();
+    bool has_auth = auth_subcommand->parsed();
+    bool has_args = (chat_id != 0) && !file_path.empty();
 
-       if (has_auth && has_args) {
-           std::cerr << "Cannot provide chat_id and file with auth command" << std::endl;
-           return 1;
-       }
+    if (has_auth && has_args) {
+        std::cerr << "Cannot provide chat_id and file with auth command" << std::endl;
+        return 1;
+    }
 
-       if (!has_auth && !has_args) {
-           std::cerr << "Must provide both chat_id and file when not using auth" << std::endl;
-           return 1;
-       }
+    if (!has_auth && !has_args) {
+        std::cerr << "Must provide both chat_id and file when not using auth" << std::endl;
+        return 1;
+    }
     if (!has_auth && !std::filesystem::exists(file_path)) {
         std::cout << "File not found: " << file_path << std::endl;
         return 1;
     }
 
-    TelegramBackup telegram_backup{has_auth};
+    TelegramBackup telegram_backup{data_dir, has_auth};
     if (!telegram_backup.start()) {
         return 1;
     }

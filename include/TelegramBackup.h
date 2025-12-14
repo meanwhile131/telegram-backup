@@ -39,7 +39,7 @@ namespace td_api = td::td_api;
 
 class TelegramBackup {
 public:
-    TelegramBackup(bool auth_only = false);
+    TelegramBackup(std::string data_dir, bool auth_only = false);
 
     bool start();
 
@@ -55,6 +55,7 @@ private:
     std::int32_t client_id_{0};
 
     td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
+    std::string data_dir;
     bool are_authorized_{false};
     bool exiting{false};
     bool chats_loaded{false};

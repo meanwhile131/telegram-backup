@@ -1,6 +1,8 @@
 #include <TelegramBackup.h>
 
-TelegramBackup::TelegramBackup(const bool auth_only) : auth_only(auth_only) {
+#include <utility>
+
+TelegramBackup::TelegramBackup(std::string data_dir, const bool auth_only) : data_dir(std::move(data_dir)), auth_only(auth_only) {
     td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
@@ -239,7 +241,7 @@ void TelegramBackup::on_authorization_state_update() {
                               },
                               [this](td_api::authorizationStateWaitTdlibParameters &) {
                                   auto request = td_api::make_object<td_api::setTdlibParameters>();
-                                  request->database_directory_ = "tdlib";
+                                  request->database_directory_ = data_dir;
                                   request->use_chat_info_database_ = true;
                                   request->use_secret_chats_ = true;
                                   request->api_id_ = 94575;
