@@ -43,7 +43,7 @@ void TelegramBackup::queue_file_upload(const std::filesystem::path &path, int64_
                                messages_sending.insert(message.id_);
                            },
                            [&](auto &error) {
-                               std::cout << "Failed to queue " << file_path << ": " << to_string(error) << std::endl;
+                               std::cerr << "Failed to queue " << file_path << ": " << to_string(error) << std::endl;
                            }));
                    messages_queuing -= 1;
                });
@@ -254,7 +254,7 @@ void TelegramBackup::on_authorization_state_update() {
 void TelegramBackup::check_authentication_error(Object object) {
     if (object->get_id() == td_api::error::ID) {
         auto error = td::move_tl_object_as<td_api::error>(object);
-        std::cout << "Error: " << to_string(error) << std::flush;
+        std::cerr << "Error: " << to_string(error) << std::flush;
         on_authorization_state_update();
     }
 }
