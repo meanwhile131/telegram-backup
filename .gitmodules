@@ -6,3 +6,7 @@
 	path = CLI11
 	url = https://github.com/CLIUtils/CLI11.git
 	shallow = true
+[submodule "googletest"]
+	path = googletest
+	url = https://github.com/google/googletest.git
+	shallow = true
