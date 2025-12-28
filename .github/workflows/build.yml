@@ -31,13 +31,13 @@ jobs:
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-      - name: Generate artifact version
+      - name: Get version
+        id: version
         run: |
-          VERSION=$(git describe --tags --always)
-          echo "ARTIFACT_NAME=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$(git describe --tags --always)" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tgbackup-${{ env.ARTIFACT_NAME }}
+          name: tgbackup-${{ steps.version.outputs.VERSION }}
           path: build/tgbackup
